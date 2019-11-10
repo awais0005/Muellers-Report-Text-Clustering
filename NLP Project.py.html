@@ -1,0 +1,218 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[1]:
+
+
+import os
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+
+
+# In[2]:
+
+
+os.chdir('/users/mohammadawais/desktop/ML DATA')
+
+
+# In[3]:
+
+
+df=pd.read_csv('mueller_report.csv')
+df.head()
+
+
+# # Preprocessing: Tokenization, Lematization,Stemming, Vectorization
+
+# In[4]:
+
+
+df.info()
+
+
+# In[5]:
+
+
+df
+
+
+# In[6]:
+
+
+df = df[~df['text'].isnull()]
+
+
+# In[7]:
+
+
+df
+
+
+# In[8]:
+
+
+df['text'][:20]
+
+
+# In[9]:
+
+
+df = df.groupby('page')['text'].apply(lambda text: ''.join(text.to_string(index=False))).str.replace('(\\n)', '').reset_index()
+df.head()
+
+
+# In[10]:
+
+
+from string import punctuation
+df['text'] = df.text.apply(lambda x: x.lower())
+df['text'] = df.text.apply(lambda x: ''.join([c for c in x if c not in punctuation]))
+
+
+# In[11]:
+
+
+df
+
+
+# In[12]:
+
+
+import nltk
+nltk.download('punkt')
+from nltk.corpus import stopwords 
+from nltk.tokenize import word_tokenize 
+
+stop_words = set(stopwords.words('english')) 
+
+df['text'] = df.text.apply(lambda x: word_tokenize(x))
+
+df['text'] = df.text.apply(lambda x: [w for w in x if w not in stop_words])
+
+df['text'] = df.text.apply(lambda x: ' '.join(x))
+
+
+# In[13]:
+
+
+df
+
+
+# In[14]:
+
+
+df['text'][5]
+
+
+# In[15]:
+
+
+import re
+
+
+# In[16]:
+
+
+def preprocess(text):
+    text = re.sub(r"\n", " ", text) # newline-> space
+    text = re.sub(r"nan", " ", text) # nan->del
+    text = re.sub(r"name", " ", text)
+    text = re.sub(r"dtype", " ", text)
+    text = re.sub(r"object", " ", text)
+    text = re.sub(r"i'm", "i am ", text)# i m->i am
+    text = re.sub(r"\'re", " are ", text)
+    text = re.sub(r"\'d", " would ", text) # ...d->would
+    text = re.sub(r"\'ll", " will ", text)# ..ll ->will
+    text = re.sub(r"\'scuse", " excuse ", text)
+    text = re.sub('\W', ' ', text)
+    text = re.sub('\s+', ' ', text)# extra white space remove
+    text = text.strip(' ')
+    return text
+
+
+# In[17]:
+
+
+df['text'] = df['text'].map(lambda com : preprocess(com))
+df['text'][5]
+
+
+# In[18]:
+
+
+df
+
+
+# In[19]:
+
+
+x=df['text']
+
+
+# In[20]:
+
+
+x
+
+
+# In[21]:
+
+
+from sklearn.feature_extraction.text import TfidfVectorizer
+
+#define vectorizer parameters
+vectorizer = TfidfVectorizer(stop_words='english')
+get_ipython().run_line_magic('time', '')
+X= vectorizer.fit_transform(x)
+
+
+# # Clustering
+i am using elbow method for calculating the optimal number of cluster in model
+# In[22]:
+
+
+get_ipython().run_line_magic('time', '')
+from sklearn.cluster import KMeans
+wcss=[]
+for i in range(1,15):
+    kmeans = KMeans(n_clusters = i, init = 'k-means++', random_state = 42)
+    kmeans.fit(X)
+    wcss.append(kmeans.inertia_)
+plt.plot(range(1, 15), wcss)
+plt.title('The Elbow Method')
+plt.xlabel('Number of clusters')
+plt.ylabel('WCSS')
+plt.show()
+
+it seems to be 8 is the most promising cluster thus k=8
+# In[24]:
+
+
+true_k = 8
+model = KMeans(n_clusters=true_k, init='k-means++', max_iter=100, n_init=1)
+model.fit(X)
+
+
+# In[25]:
+
+
+order_centroids = model.cluster_centers_.argsort()[:, ::-1]
+terms = vectorizer.get_feature_names()
+
+
+# In[26]:
+
+
+terms
+
+
+# In[27]:
+
+
+n=int(input('Enter The Number of Words per Cluster want To See'))
+for i in range(true_k):
+    print('cluster .................... ',i),
+    for ind in order_centroids[i, :n]:
+        print(terms[ind])
+
